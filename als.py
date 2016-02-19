@@ -1,3 +1,5 @@
+__author__ = 'chhavi21'
+
 from load_data import *
 from baseline_model import *
 import numpy as np
@@ -7,6 +9,7 @@ from pyspark.mllib.recommendation import ALS, MatrixFactorizationModel, Rating
 ## CREATE MAPPING
 ################################################################################
 
+# ALS needs numeric user_id and business_id. Hence create mapping for both
 business_id_mapping = dict()
 business_id = review.select(["business_id"]).map(lambda x: x.business_id).collect()
 business_id = list(set(business_id))
@@ -23,6 +26,7 @@ for i in range(len(user_id)):
 ################################################################################
 ## CREATE INVERSE MAPPING
 ################################################################################
+# create inverse mapping of the mapping above incase needed.
 inv_business_id_mapping = dict()
 for i in business_id_mapping:
     inv_business_id_mapping[business_id_mapping[i]] = i
@@ -52,10 +56,12 @@ model = ALS.train(als_data, rank, numIterations, lambda_ = 0.3, seed=10)
 ################################################################################
 
 def clip(x):
+    # clip the ratings if they are outside permissible limits
     if x<1: return 1.0
     elif x>5: return 5.0
     return x
 
+#make predicitions on test data
 test_data = review.select(['user_id', "business_id"]).\
             map(lambda x: (user_id_mapping[x[0]], business_id_mapping[x[1]]))
 predictions = model.predictAll(test_data).map(lambda r: ((r[0], r[1]), clip(r[2]+mu)))
@@ -89,7 +95,8 @@ rmse = np.sqrt(se/n)
 ## GET COMMON TEST DATA
 ################################################################################
 
-# try to improve this code by not taking stuff out of rdd
+# Note to self: try to improve this code by not taking stuff out of rdd
+# get the set of known user and known business from train and test set
 known_business = test_rvw.select(['business_id']).rdd.intersection(business.select(['business_id']).rdd)
 known_business = known_business.map(lambda x: x.business_id).collect()
 known_business = set(known_business)
@@ -98,13 +105,13 @@ known_user = test_rvw.select(['user_id']).rdd.intersection(user.select(['user_id
 known_user = known_user.map(lambda x: x.user_id).collect()
 known_user = set(known_user)
 
-#12078
+#12078 observations
 known_user_and_know_business = test_rvw.drop('type').\
                         map(lambda x: (x.user_id, x.business_id, x.review_id)).\
                         filter(lambda x: (x[0] in known_user)
                                          and (x[1] in known_business))
 
-#user_id, business_if, review_id
+# fromat: (user_id, business_id, review_id)
 known_user_and_know_business = known_user_and_know_business.\
                                             map(lambda x: (user_id_mapping[x[0]],
                                                 business_id_mapping[x[1]], x[2]))
@@ -129,15 +136,21 @@ test_pred = test_pred.join(known_user_and_know_business, on=['user_id_mapping',
                      .drop('business_id_mapping')\
                      .drop('user_id_mapping')
 
+#export data to pandas so that it can be written to csv. 
+#Spark does not have any function to export data to csv directly
 p = test_pred.toPandas()
 
-
+# get ratings for known-known case from ALS and rest from baseline predicitions
 preds_final = preds.merge(p, on=['review_id'], how='outer')
 preds_final.pred = preds_final.apply(lambda x: x.stars if np.isnan(x.pred) else x.pred, axis=1)
 preds_final.drop('stars', axis=1, inplace=True)
 preds_final.columns = ['review_id', 'stars']
 preds_final.to_csv('submission.csv', index=None)
 
+
+################################################################################
+## OBSERVATIONS
+################################################################################
 
 # k=10 RMSE 1.38587
 # k=8 RMSE 1.36976

@@ -1,3 +1,5 @@
+__author__ = 'chhavi21'
+
 import os
 import sys
 # Path for spark source folder
@@ -18,7 +20,7 @@ sqlContext = SQLContext(sc)
 PATH = './data/'
 
 ################################################################################
-# TRAINING DATA
+# LOAD TRAINING DATA
 ################################################################################
 
 business = sqlContext.read.json(PATH + "yelp_training_set_business.json").repartition(16) # 11537
@@ -58,7 +60,7 @@ mapping = sqlContext.createDataFrame(mapping)
 
 
 ################################################################################
-# TEST DATA
+# LOAD TEST DATA
 ################################################################################
 
 test_bus = sqlContext.read.json(PATH + "final_test_set_business.json").repartition(16) # 2797
@@ -115,7 +117,7 @@ test_rvw.select(['user_id']).rdd.intersection(user.select(['user_id']).rdd).coun
 # user = user.drop('votes')
 #
 
-#Clean any bad data, usually by inserting global averages
+#Clean any bad data, by inserting global averages
 usr_mean_stars = user.agg({'average_stars': 'mean'}).collect()[0]['avg(average_stars)']
 user = user.withColumn('average_stars', when(user.average_stars<1, usr_mean_stars).otherwise(user.average_stars))
 
@@ -123,7 +125,7 @@ usr_mean_review = user.agg({'review_count': 'mean'}).collect()[0]['avg(review_co
 user = user.withColumn('review_count', when(user.review_count<1, usr_mean_review).otherwise(user.review_count))
 
 
-# review.printSchema()
+# drop unneccessary columns
 user = user.drop('type')
 review = review.drop('date').drop('type')
 business = business.drop('neighborhoods').drop('type')
