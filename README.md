@@ -1,4 +1,4 @@
-<p><strong> Scalable Recommendation System for Yelp </p>
+<p><strong> Scalable Recommendation System for Yelp</strong></p>
 
 <p>Piyush Bhargava, Sakshi Bhargava, Chhavi Choudhury</p>
 
